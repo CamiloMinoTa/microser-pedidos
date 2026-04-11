@@ -1,53 +1,80 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Microservicio de Pedidos
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Este es un microservicio para la gestión de pedidos, desarrollado con **Nest.js** y **TypeScript**. Utiliza una arquitectura hexagonal (Domain-Driven Design) para mantener la separación de responsabilidades y facilitar el mantenimiento y escalabilidad.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Arquitectura
 
-## Description
+El proyecto está estructurado en las siguientes capas:
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **Domain**: Contiene las entidades de negocio, interfaces de repositorio y objetos de valor.
+  - `entities/order.entity.ts`: Entidad principal del pedido.
+  - `interfaces/order.repository.ts`: Interfaz para el repositorio de pedidos.
+  - `value-objects/order-status.ts`: Objeto de valor para el estado del pedido.
 
-## Project setup
+- **Application**: Lógica de aplicación, controladores y servicios.
+  - `orders.controller.ts`: Controlador REST para operaciones de pedidos.
+  - `orders.service.ts`: Servicio de aplicación para lógica de negocio.
+  - `dto/create-order.dto.ts`: DTO para crear pedidos.
+
+- **Infrastructure**: Implementaciones concretas, como repositorios.
+  - `in-memory-order.repository.ts`: Repositorio en memoria para pedidos.
+
+- **Saga**: Servicio de saga para orquestar procesos complejos.
+  - `order-saga.service.ts`: Servicio para manejar sagas de pedidos.
+
+## Tecnologías
+
+- **Nest.js**: Framework para Node.js.
+- **TypeScript**: Lenguaje de programación.
+- **Jest**: Para pruebas unitarias y e2e.
+
+## Instalación
 
 ```bash
-$ npm install
+npm install
 ```
 
-## Compile and run the project
+## Ejecución
 
 ```bash
-# development
-$ npm run start
+# Desarrollo
+npm run start
 
-# watch mode
-$ npm run start:dev
+# Modo watch
+npm run start:dev
 
-# production mode
-$ npm run start:prod
+# Producción
+npm run start:prod
 ```
 
-## Run tests
+## Pruebas
 
 ```bash
-# unit tests
+# Pruebas unitarias
+npm run test
+
+# Pruebas e2e
+npm run test:e2e
+
+# Cobertura
+npm run test:cov
+```
+
+## Endpoints
+
+- `GET /orders`: Obtener todos los pedidos.
+- `POST /orders`: Crear un nuevo pedido.
+- `GET /orders/:id`: Obtener un pedido por ID.
+- `PUT /orders/:id`: Actualizar un pedido.
+- `DELETE /orders/:id`: Eliminar un pedido.
+
+## Contribución
+
+Para contribuir, por favor sigue las guías de estilo y envía un pull request.
+
+## Licencia
+
+Este proyecto está bajo la licencia MIT.
 $ npm run test
 
 # e2e tests

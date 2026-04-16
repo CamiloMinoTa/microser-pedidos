@@ -1,11 +1,9 @@
-import { OrderId } from '../value-objects/order-id.value-object';
 import { CustomerId } from '../value-objects/customer-id.value-object';
 import { ProductId } from '../value-objects/product-id.value-object';
 import { Quantity } from '../value-objects/quantity.value-object';
 import { Money } from '../value-objects/money.value-object';
-import { OrderStatus } from '../value-objects/order-status.value-object';
 
-export class OrderItem {
+export class CartItem {
   constructor(
     public productId: ProductId,
     public quantity: Quantity,
@@ -13,13 +11,11 @@ export class OrderItem {
   ) {}
 }
 
-export class Order {
+export class Cart {
   constructor(
-    public id: OrderId,
-    public customerId: CustomerId,
-    public items: OrderItem[],
+    public id: string,
+    public userId: CustomerId,
+    public items: CartItem[],
     public totalAmount: Money,
-    public status: OrderStatus,
-    public createdAt: Date,
   ) {}
 }

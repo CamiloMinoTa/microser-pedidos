@@ -7,4 +7,20 @@ services:
       - "3004:3004"
     environment:
       NODE_ENV: production
+      MONGO_URI: mongodb://mongodb:27017/pedidos
+    depends_on:
+      - mongodb
     restart: unless-stopped
+
+  mongodb:
+    image: mongo:7.0
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: pedidos
+    volumes:
+      - mongodb_data:/data/db
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:

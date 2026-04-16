@@ -17,6 +17,12 @@ npm install
 npm run start:dev
 ```
 
+Si `3004` ya esta ocupado por Docker, corre Nest local en `3005`:
+
+```bash
+npm run start:dev:local
+```
+
 Variables principales:
 
 - `MONGO_URI`: conexion MongoDB. Default `mongodb://localhost:27017/pedidos`
@@ -71,6 +77,11 @@ npm --prefix frontend install
 npm run start:frontend
 ```
 
+El frontend detecta automaticamente este orden:
+
+- `http://localhost:3004` para Docker
+- `http://localhost:3005` para Nest local
+
 Para produccion:
 
 ```bash
@@ -81,6 +92,7 @@ Si quieres cambiar la URL del backend, usa `frontend/.env.example` como base:
 
 ```bash
 VITE_API_URL=http://localhost:3004
+VITE_API_FALLBACK_URL=http://localhost:3005
 ```
 
 ## Endpoints base

@@ -1,125 +1,94 @@
 # Microservicio de Pedidos
 
-Este es un microservicio para la gestión de pedidos, desarrollado con **Nest.js** y **TypeScript**. Utiliza una arquitectura hexagonal (Domain-Driven Design) para mantener la separación de responsabilidades y facilitar el mantenimiento y escalabilidad.
+Proyecto basado en NestJS para gestionar pedidos, carrito e historial, con persistencia en MongoDB y un frontend inicial en React.
 
-## Arquitectura
+## Estructura
 
-El proyecto está estructurado en las siguientes capas:
+- `src/domain`: entidades y value objects.
+- `src/application`: puertos y casos de uso.
+- `src/infrastructure`: controladores HTTP, repositorios Mongo y schemas.
+- `test`: pruebas HTTP del backend.
+- `frontend`: app React + Vite para empezar el frontend.
 
-- **Domain**: Contiene las entidades de negocio, interfaces de repositorio y objetos de valor.
-  - `entities/order.entity.ts`: Entidad principal del pedido.
-  - `interfaces/order.repository.ts`: Interfaz para el repositorio de pedidos.
-  - `value-objects/order-status.ts`: Objeto de valor para el estado del pedido.
-
-- **Application**: Lógica de aplicación, controladores y servicios.
-  - `orders.controller.ts`: Controlador REST para operaciones de pedidos.
-  - `orders.service.ts`: Servicio de aplicación para lógica de negocio.
-  - `dto/create-order.dto.ts`: DTO para crear pedidos.
-
-- **Infrastructure**: Implementaciones concretas, como repositorios.
-  - `in-memory-order.repository.ts`: Repositorio en memoria para pedidos.
-
-- **Saga**: Servicio de saga para orquestar procesos complejos.
-  - `order-saga.service.ts`: Servicio para manejar sagas de pedidos.
-
-## Tecnologías
-
-- **Nest.js**: Framework para Node.js.
-- **TypeScript**: Lenguaje de programación.
-- **Jest**: Para pruebas unitarias y e2e.
-
-## Instalación
+## Backend
 
 ```bash
 npm install
-```
-
-## Ejecución
-
-```bash
-# Desarrollo
-npm run start
-
-# Modo watch
 npm run start:dev
-
-# Producción
-npm run start:prod
 ```
 
-## Pruebas
+Variables principales:
+
+- `MONGO_URI`: conexion MongoDB. Default `mongodb://localhost:27017/pedidos`
+- `PORT`: puerto HTTP. Default `3004`
+
+Puedes dejar la conexion en `.env`:
 
 ```bash
-# Pruebas unitarias
-npm run test
+MONGO_URI=mongodb+srv://usuario:password@tu-cluster.mongodb.net/?retryWrites=true&w=majority
+MONGO_DB_NAME=pedidos
+PORT=3004
+```
 
-# Pruebas e2e
+Validaciones ejecutadas:
+
+```bash
+npm run build
+npm test
 npm run test:e2e
-
-# Cobertura
-npm run test:cov
 ```
 
-## Endpoints
+## Docker
 
-- `GET /orders`: Obtener todos los pedidos.
-- `POST /orders`: Crear un nuevo pedido.
-- `GET /orders/:id`: Obtener un pedido por ID.
-- `PUT /orders/:id`: Actualizar un pedido.
-- `DELETE /orders/:id`: Eliminar un pedido.
+`docker compose` usa las variables de `.env`, incluyendo `MONGO_URI` para MongoDB Atlas.
 
-## Contribución
-
-Para contribuir, por favor sigue las guías de estilo y envía un pull request.
-
-## Licencia
-
-Este proyecto está bajo la licencia MIT.
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Antes de levantar el contenedor, configura `.env` asi:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+MONGO_URI=mongodb+srv://usuario:password@tu-cluster.mongodb.net/?retryWrites=true&w=majority
+MONGO_DB_NAME=pedidos
+PORT=3004
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Checklist de Atlas:
 
-## Resources
+- `Database Access`: crea un usuario con password
+- `Network Access`: agrega tu IP o `0.0.0.0/0` para pruebas
+- `Clusters > Connect > Drivers`: copia la cadena oficial `mongodb+srv://...`
 
-Check out a few resources that may come in handy when working with NestJS:
+Luego levanta:
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```bash
+docker compose up --build
+```
 
-## Support
+La API queda disponible en `http://localhost:3004`.
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## Frontend
 
-## Stay in touch
+```bash
+npm --prefix frontend install
+npm run start:frontend
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+Para produccion:
 
-## License
+```bash
+npm run build:frontend
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Si quieres cambiar la URL del backend, usa `frontend/.env.example` como base:
+
+```bash
+VITE_API_URL=http://localhost:3004
+```
+
+## Endpoints base
+
+- `GET /`
+- `GET /orders`
+- `POST /orders`
+- `GET /orders/:id`
+- `GET /orders/user/:userId`
+- `PATCH /orders/:id/status`
+- `DELETE /orders/:id`

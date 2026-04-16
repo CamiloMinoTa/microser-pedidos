@@ -1,154 +1,204 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
-import { AppModule } from './../src/app.module';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { Test, TestingModule } from '@nestjs/testing';
+import request from 'supertest';
+import { CreateOrderUseCase } from './../src/application/use-cases/checkout/create-order.use-case';
+import { CancelOrderUseCase } from './../src/application/use-cases/checkout/cancel-order.use-case';
+import { UpdateOrderStatusUseCase } from './../src/application/use-cases/checkout/update-order-status.use-case';
+import { GetOrderByIdUseCase } from './../src/application/use-cases/history/get-order-by-id.use-case';
+import { GetUserOrderHistoryUseCase } from './../src/application/use-cases/history/get-user-order-history.use-case';
+import { ORDER_REPOSITORY } from './../src/application/ports/order.repository';
+import { OrdersController } from './../src/infrastructure/controllers/orders.controller';
 
-describe('Orders Microservice E2E (MongoDB Real)', () => {
+type PlainOrder = {
+  id: string;
+  customerId: string;
+  totalAmount: number;
+  status: string;
+  items: Array<{ productId: string; quantity: number; price: number }>;
+  createdAt: string;
+};
+
+describe('OrdersController (e2e)', () => {
   let app: INestApplication;
-  let mongoServer: MongoMemoryServer;
+  let orders: PlainOrder[];
 
-  beforeAll(async () => {
-    // Iniciar MongoDB en memoria para testing
-    mongoServer = await MongoMemoryServer.create();
-    const mongoUri = mongoServer.getUri();
+  beforeEach(async () => {
+    orders = [];
+
+    const orderRepository = {
+      findAll: jest.fn(async () => orders),
+    };
+
+    const createOrderUseCase = {
+      execute: jest.fn(async (payload: any) => {
+        const createdOrder: PlainOrder = {
+          id: `order-${orders.length + 1}`,
+          customerId: payload.customerId.toString(),
+          items: payload.items,
+          totalAmount: payload.totalAmount,
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+        };
+
+        orders.push(createdOrder);
+        return createdOrder;
+      }),
+    };
+
+    const getOrderByIdUseCase = {
+      execute: jest.fn(async (id: string) => orders.find((order) => order.id === id) ?? null),
+    };
+
+    const getOrderHistoryUseCase = {
+      execute: jest.fn(async (customerId: any) =>
+        orders.filter((order) => order.customerId === customerId.toString()),
+      ),
+    };
+
+    const updateOrderStatusUseCase = {
+      execute: jest.fn(async (id: string, status: any) => {
+        const order = orders.find((item) => item.id === id);
+        if (!order) {
+          return null;
+        }
+
+        order.status = status.toString();
+        return order;
+      }),
+    };
+
+    const cancelOrderUseCase = {
+      execute: jest.fn(async (id: string) => {
+        const originalLength = orders.length;
+        orders = orders.filter((order) => order.id !== id);
+        return orders.length !== originalLength;
+      }),
+    };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    })
-      .overrideProvider('MONGO_URI')
-      .useValue(mongoUri)
-      .compile();
+      controllers: [OrdersController],
+      providers: [
+        { provide: CreateOrderUseCase, useValue: createOrderUseCase },
+        { provide: CancelOrderUseCase, useValue: cancelOrderUseCase },
+        { provide: UpdateOrderStatusUseCase, useValue: updateOrderStatusUseCase },
+        { provide: GetOrderByIdUseCase, useValue: getOrderByIdUseCase },
+        { provide: GetUserOrderHistoryUseCase, useValue: getOrderHistoryUseCase },
+        { provide: ORDER_REPOSITORY, useValue: orderRepository },
+      ],
+    }).compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
   });
 
-  afterAll(async () => {
+  afterEach(async () => {
     await app.close();
-    if (mongoServer) await mongoServer.stop();
   });
 
-  describe('Crear Pedido (POST /orders)', () => {
-    it('Debe crear un nuevo pedido con MongoDB real', async () => {
-      const createOrderDto = {
+  it('crea un pedido', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/orders')
+      .send({
         customerId: 'cust-123',
-        items: [
-          {
-            productId: 'prod-001',
-            quantity: 2,
-            price: 100,
-          },
-        ],
+        items: [{ productId: 'prod-001', quantity: 2, price: 100 }],
         totalAmount: 200,
-      };
+      })
+      .expect(201);
 
-      const response = await request(app.getHttpServer())
-        .post('/orders')
-        .send(createOrderDto)
-        .expect(201);
-
-      expect(response.body).toHaveProperty('id');
-      expect(response.body.customerId).toBe('cust-123');
-      expect(response.body.totalAmount).toBe(200);
-      expect(response.body.status).toBe('pending');
-    });
-
-    it('Debe fallar sin datos requeridos', async () => {
-      await request(app.getHttpServer())
-        .post('/orders')
-        .send({})
-        .expect(400);
-    });
+    expect(response.body.customerId).toBe('cust-123');
+    expect(response.body.totalAmount).toBe(200);
+    expect(response.body.status).toBe('pending');
   });
 
-  describe('Obtener Pedido (GET /orders/:id)', () => {
-    let orderId: string;
-
-    beforeAll(async () => {
-      const createResponse = await request(app.getHttpServer())
-        .post('/orders')
-        .send({
-          customerId: 'cust-456',
-          items: [{ productId: 'prod-002', quantity: 1, price: 50 }],
-          totalAmount: 50,
-        });
-      orderId = createResponse.body.id;
-    });
-
-    it('Debe obtener un pedido existente', async () => {
-      const response = await request(app.getHttpServer())
-        .get(`/orders/${orderId}`)
-        .expect(200);
-
-      expect(response.body.id).toBe(orderId);
-      expect(response.body.customerId).toBe('cust-456');
-    });
-
-    it('Debe retornar 404 para pedido inexistente', async () => {
-      await request(app.getHttpServer())
-        .get('/orders/nonexistent-id')
-        .expect(404);
-    });
+  it('valida datos requeridos al crear', async () => {
+    await request(app.getHttpServer()).post('/orders').send({}).expect(400);
   });
 
-  describe('Listar Pedidos (GET /orders)', () => {
-    it('Debe retornar lista de pedidos', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/orders')
-        .expect(200);
-
-      expect(Array.isArray(response.body)).toBe(true);
+  it('lista pedidos', async () => {
+    orders.push({
+      id: 'order-1',
+      customerId: 'cust-abc',
+      items: [{ productId: 'prod-001', quantity: 1, price: 50 }],
+      totalAmount: 50,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
     });
+
+    const response = await request(app.getHttpServer()).get('/orders').expect(200);
+
+    expect(Array.isArray(response.body)).toBe(true);
+    expect(response.body).toHaveLength(1);
   });
 
-  describe('Actualizar Estado de Pedido (PATCH /orders/:id/status)', () => {
-    let orderId: string;
-
-    beforeAll(async () => {
-      const createResponse = await request(app.getHttpServer())
-        .post('/orders')
-        .send({
-          customerId: 'cust-789',
-          items: [{ productId: 'prod-003', quantity: 1, price: 75 }],
-          totalAmount: 75,
-        });
-      orderId = createResponse.body.id;
+  it('obtiene un pedido por id', async () => {
+    orders.push({
+      id: 'order-2',
+      customerId: 'cust-456',
+      items: [{ productId: 'prod-002', quantity: 1, price: 50 }],
+      totalAmount: 50,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
     });
 
-    it('Debe actualizar el estado del pedido', async () => {
-      const response = await request(app.getHttpServer())
-        .patch(`/orders/${orderId}/status`)
-        .send({ status: 'confirmed' })
-        .expect(200);
+    const response = await request(app.getHttpServer()).get('/orders/order-2').expect(200);
 
-      expect(response.body.status).toBe('confirmed');
-    });
+    expect(response.body.id).toBe('order-2');
   });
 
-  describe('Cancelar Pedido (DELETE /orders/:id)', () => {
-    let orderId: string;
+  it('retorna 404 cuando el pedido no existe', async () => {
+    await request(app.getHttpServer()).get('/orders/no-existe').expect(404);
+  });
 
-    beforeAll(async () => {
-      const createResponse = await request(app.getHttpServer())
-        .post('/orders')
-        .send({
-          customerId: 'cust-999',
-          items: [{ productId: 'prod-004', quantity: 1, price: 100 }],
-          totalAmount: 100,
-        });
-      orderId = createResponse.body.id;
+  it('retorna pedidos por usuario sin chocar con la ruta por id', async () => {
+    orders.push({
+      id: 'order-3',
+      customerId: 'cust-user',
+      items: [{ productId: 'prod-003', quantity: 3, price: 20 }],
+      totalAmount: 60,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
     });
 
-    it('Debe cancelar (eliminar) un pedido', async () => {
-      await request(app.getHttpServer())
-        .delete(`/orders/${orderId}`)
-        .expect(200);
+    const response = await request(app.getHttpServer())
+      .get('/orders/user/cust-user')
+      .expect(200);
 
-      // Verificar que fue eliminado
-      await request(app.getHttpServer())
-        .get(`/orders/${orderId}`)
-        .expect(404);
+    expect(response.body).toHaveLength(1);
+    expect(response.body[0].customerId).toBe('cust-user');
+  });
+
+  it('actualiza el estado de un pedido', async () => {
+    orders.push({
+      id: 'order-4',
+      customerId: 'cust-789',
+      items: [{ productId: 'prod-004', quantity: 1, price: 75 }],
+      totalAmount: 75,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
     });
+
+    const response = await request(app.getHttpServer())
+      .patch('/orders/order-4/status')
+      .send({ status: 'confirmed' })
+      .expect(200);
+
+    expect(response.body.status).toBe('confirmed');
+  });
+
+  it('elimina un pedido', async () => {
+    orders.push({
+      id: 'order-5',
+      customerId: 'cust-999',
+      items: [{ productId: 'prod-005', quantity: 1, price: 100 }],
+      totalAmount: 100,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    });
+
+    const response = await request(app.getHttpServer())
+      .delete('/orders/order-5')
+      .expect(200);
+
+    expect(response.body).toEqual({ deleted: true });
   });
 });

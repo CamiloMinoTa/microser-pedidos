@@ -4,3 +4,5 @@ Dockerfile
 docker-compose.yml
 dist
 .git
+.env
+.env.example

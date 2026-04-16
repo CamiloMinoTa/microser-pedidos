@@ -5,20 +5,14 @@ import { MongoOrderRepository } from './infrastructure/repositories/mongo-order.
 import { MongoCartRepository } from './infrastructure/repositories/mongo-cart.repository';
 import { MongoProductRepository } from './infrastructure/repositories/mongo-product.repository';
 import { MongoCustomerRepository } from './infrastructure/repositories/mongo-customer.repository';
-import { MongoPaymentRepository } from './infrastructure/repositories/mongo-payment.repository';
-import { MongoInventoryRepository } from './infrastructure/repositories/mongo-inventory.repository';
 import { ORDER_REPOSITORY } from './application/ports/order.repository';
 import { CART_REPOSITORY } from './application/ports/cart.repository';
 import { PRODUCT_REPOSITORY } from './application/ports/product.repository';
 import { CUSTOMER_REPOSITORY } from './application/ports/customer.repository';
-import { PAYMENT_REPOSITORY } from './application/ports/payment.repository';
-import { INVENTORY_REPOSITORY } from './application/ports/inventory.repository';
 import { OrderSchema } from './infrastructure/repositories/schemas/order.schema';
 import { CartSchema } from './infrastructure/repositories/schemas/cart.schema';
 import { ProductSchema } from './infrastructure/repositories/schemas/product.schema';
 import { CustomerSchema } from './infrastructure/repositories/schemas/customer.schema';
-import { PaymentSchema } from './infrastructure/repositories/schemas/payment.schema';
-import { InventorySchema } from './infrastructure/repositories/schemas/inventory.schema';
 import { CreateOrderUseCase } from './application/use-cases/checkout/create-order.use-case';
 import { CancelOrderUseCase } from './application/use-cases/checkout/cancel-order.use-case';
 import { UpdateOrderStatusUseCase } from './application/use-cases/checkout/update-order-status.use-case';
@@ -37,8 +31,7 @@ import { GetOrderByIdUseCase } from './application/use-cases/history/get-order-b
       { name: 'Cart', schema: CartSchema },
       { name: 'Product', schema: ProductSchema },
       { name: 'Customer', schema: CustomerSchema },
-      { name: 'Payment', schema: PaymentSchema },
-      { name: 'Inventory', schema: InventorySchema },
+     
     ]),
   ],
   controllers: [OrdersController],
@@ -73,22 +66,15 @@ import { GetOrderByIdUseCase } from './application/use-cases/history/get-order-b
       provide: CUSTOMER_REPOSITORY,
       useClass: MongoCustomerRepository,
     },
-    {
-      provide: PAYMENT_REPOSITORY,
-      useClass: MongoPaymentRepository,
-    },
-    {
-      provide: INVENTORY_REPOSITORY,
-      useClass: MongoInventoryRepository,
-    },
+    
+  
+  
   ],
   exports: [
     ORDER_REPOSITORY,
     CART_REPOSITORY,
     PRODUCT_REPOSITORY,
     CUSTOMER_REPOSITORY,
-    PAYMENT_REPOSITORY,
-    INVENTORY_REPOSITORY,
   ],
 })
 export class OrdersModule {}

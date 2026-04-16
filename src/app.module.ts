@@ -6,7 +6,12 @@ import { OrdersModule } from './orders.module';
 
 @Module({
   imports: [
-    MongooseModule.forRoot(process.env.MONGO_URI || 'mongodb://localhost:27017/pedidos'),
+    MongooseModule.forRootAsync({
+      useFactory: () => ({
+        uri: process.env.MONGO_URI || 'mongodb://localhost:27017/pedidos',
+        dbName: process.env.MONGO_DB_NAME || 'pedidos',
+      }),
+    }),
     OrdersModule,
   ],
   controllers: [AppController],

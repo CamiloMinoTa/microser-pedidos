@@ -1,7 +1,7 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { Order } from '../../../domain/entities/order.entity';
 import { OrderStatus } from '../../../domain/value-objects/order-status.value-object';
-import { ORDER_REPOSITORY, type OrderRepository } from '../../ports/order.repository';
+import { ORDER_REPOSITORY, type OrderRepository } from '../../../domain/ports/order.repository';
 
 @Injectable()
 export class UpdateOrderStatusUseCase {

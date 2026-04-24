@@ -1,5 +1,5 @@
-import { Cart } from '../../domain/entities/cart.entity';
-import { CustomerId } from '../../domain/value-objects/customer-id.value-object';
+import { Cart } from '../entities/cart.entity';
+import { CustomerId } from '../value-objects/customer-id.value-object';
 
 export const CART_REPOSITORY = Symbol('CartRepository');
 

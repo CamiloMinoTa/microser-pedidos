@@ -1,5 +1,5 @@
-import { OrderId } from '../../domain/value-objects/order-id.value-object';
-import { Money } from '../../domain/value-objects/money.value-object';
+import { OrderId } from '../value-objects/order-id.value-object';
+import { Money } from '../value-objects/money.value-object';
 
 export class Payment {
   constructor(

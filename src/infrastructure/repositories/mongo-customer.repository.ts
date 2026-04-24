@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Customer } from '../../application/ports/customer.repository';
-import { CustomerRepository } from '../../application/ports/customer.repository';
+import { Customer } from '../../domain/ports/customer.repository';
+import { CustomerRepository } from '../../domain/ports/customer.repository';
 import { CustomerId } from '../../domain/value-objects/customer-id.value-object';
 import { CustomerDocument } from './schemas/customer.schema';
 

@@ -5,10 +5,10 @@ import { MongoOrderRepository } from './infrastructure/repositories/mongo-order.
 import { MongoCartRepository } from './infrastructure/repositories/mongo-cart.repository';
 import { MongoProductRepository } from './infrastructure/repositories/mongo-product.repository';
 import { MongoCustomerRepository } from './infrastructure/repositories/mongo-customer.repository';
-import { ORDER_REPOSITORY } from './application/ports/order.repository';
-import { CART_REPOSITORY } from './application/ports/cart.repository';
-import { PRODUCT_REPOSITORY } from './application/ports/product.repository';
-import { CUSTOMER_REPOSITORY } from './application/ports/customer.repository';
+import { ORDER_REPOSITORY } from './domain/ports/order.repository';
+import { CART_REPOSITORY } from './domain/ports/cart.repository';
+import { PRODUCT_REPOSITORY } from './domain/ports/product.repository';
+import { CUSTOMER_REPOSITORY } from './domain/ports/customer.repository';
 import { OrderSchema } from './infrastructure/repositories/schemas/order.schema';
 import { CartSchema } from './infrastructure/repositories/schemas/cart.schema';
 import { ProductSchema } from './infrastructure/repositories/schemas/product.schema';

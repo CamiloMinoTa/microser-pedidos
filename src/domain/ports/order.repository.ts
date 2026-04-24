@@ -1,5 +1,5 @@
-import { Order } from '../../domain/entities/order.entity'
-import { CustomerId } from '../../domain/value-objects/customer-id.value-object';
+import { Order } from '../entities/order.entity'
+import { CustomerId } from '../value-objects/customer-id.value-object';
 
 export const ORDER_REPOSITORY = Symbol('OrderRepository');
 

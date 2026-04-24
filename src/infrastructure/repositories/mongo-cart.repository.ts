@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Cart as CartEntity, CartItem } from '../../domain/entities/cart.entity';
-import { CartRepository } from '../../application/ports/cart.repository';
+import { CartRepository } from '../../domain/ports/cart.repository';
 import { CustomerId } from '../../domain/value-objects/customer-id.value-object';
 import { ProductId } from '../../domain/value-objects/product-id.value-object';
 import { Quantity } from '../../domain/value-objects/quantity.value-object';

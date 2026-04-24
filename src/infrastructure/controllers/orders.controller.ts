@@ -15,7 +15,7 @@ import { CancelOrderUseCase } from '../../application/use-cases/checkout/cancel-
 import { UpdateOrderStatusUseCase } from '../../application/use-cases/checkout/update-order-status.use-case';
 import { GetUserOrderHistoryUseCase } from '../../application/use-cases/history/get-user-order-history.use-case';
 import { GetOrderByIdUseCase } from '../../application/use-cases/history/get-order-by-id.use-case';
-import { ORDER_REPOSITORY, type OrderRepository } from '../../application/ports/order.repository';
+import { ORDER_REPOSITORY, type OrderRepository } from '../../domain/ports/order.repository';
 import { Order } from '../../domain/entities/order.entity';
 import { CustomerId } from '../../domain/value-objects/customer-id.value-object';
 import { OrderStatus } from '../../domain/value-objects/order-status.value-object';

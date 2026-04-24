@@ -3,7 +3,7 @@ import { Cart } from '../../../domain/entities/cart.entity';
 import { CustomerId } from '../../../domain/value-objects/customer-id.value-object';
 import { ProductId } from '../../../domain/value-objects/product-id.value-object';
 import { Money } from '../../../domain/value-objects/money.value-object';
-import { CART_REPOSITORY, type CartRepository } from '../../ports/cart.repository';
+import { CART_REPOSITORY, type CartRepository } from '../../../domain/ports/cart.repository';
 
 @Injectable()
 export class RemoveItemFromCartUseCase {

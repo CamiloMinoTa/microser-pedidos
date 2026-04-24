@@ -1,5 +1,5 @@
-import { ProductId } from '../../domain/value-objects/product-id.value-object';
-import { Quantity } from '../../domain/value-objects/quantity.value-object';
+import { ProductId } from '../value-objects/product-id.value-object';
+import { Quantity } from '../value-objects/quantity.value-object';
 
 export class Inventory {
   constructor(

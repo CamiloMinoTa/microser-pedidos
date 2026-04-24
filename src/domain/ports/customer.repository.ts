@@ -1,4 +1,4 @@
-import { CustomerId } from '../../domain/value-objects/customer-id.value-object';
+import { CustomerId } from '../value-objects/customer-id.value-object';
 
 export class Customer {
   constructor(

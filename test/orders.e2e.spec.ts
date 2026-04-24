@@ -6,7 +6,7 @@ import { CancelOrderUseCase } from './../src/application/use-cases/checkout/canc
 import { UpdateOrderStatusUseCase } from './../src/application/use-cases/checkout/update-order-status.use-case';
 import { GetOrderByIdUseCase } from './../src/application/use-cases/history/get-order-by-id.use-case';
 import { GetUserOrderHistoryUseCase } from './../src/application/use-cases/history/get-user-order-history.use-case';
-import { ORDER_REPOSITORY } from './../src/application/ports/order.repository';
+import { ORDER_REPOSITORY } from '../src/domain/ports/order.repository';
 import { OrdersController } from './../src/infrastructure/controllers/orders.controller';
 
 type PlainOrder = {

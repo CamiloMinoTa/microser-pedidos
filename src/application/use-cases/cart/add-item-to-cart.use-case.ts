@@ -4,7 +4,7 @@ import { CustomerId } from '../../../domain/value-objects/customer-id.value-obje
 import { ProductId } from '../../../domain/value-objects/product-id.value-object';
 import { Quantity } from '../../../domain/value-objects/quantity.value-object';
 import { Money } from '../../../domain/value-objects/money.value-object';
-import { CART_REPOSITORY, type CartRepository } from '../../ports/cart.repository';
+import { CART_REPOSITORY, type CartRepository } from '../../../domain/ports/cart.repository';
 
 @Injectable()
 export class AddItemToCartUseCase {

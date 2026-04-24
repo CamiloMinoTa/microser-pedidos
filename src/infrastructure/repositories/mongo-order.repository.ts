@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Order as OrderEntity, OrderItem } from '../../domain/entities/order.entity';
-import { OrderRepository } from '../../application/ports/order.repository';
+import { OrderRepository } from '../../domain/ports/order.repository';
 import { CustomerId } from '../../domain/value-objects/customer-id.value-object';
 import { OrderId } from '../../domain/value-objects/order-id.value-object';
 import { ProductId } from '../../domain/value-objects/product-id.value-object';

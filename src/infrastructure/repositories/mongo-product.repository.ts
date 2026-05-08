@@ -75,6 +75,18 @@ export class MongoProductRepository implements ProductRepository {
     return this.mapToDomain(product);
   }
 
+  async increaseStock(id: string, quantity: number): Promise<ProductEntity | null> {
+    const product = await this.productModel.findById(id).exec();
+    if (!product) {
+      return null;
+    }
+
+    product.stock += quantity;
+    product.updatedAt = new Date();
+    await product.save();
+    return this.mapToDomain(product);
+  }
+
   private mapToDomain(doc: ProductDocument): ProductEntity {
     return new ProductEntity(
       doc._id.toString(),

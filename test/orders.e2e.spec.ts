@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
-import { CreateOrderUseCase } from './../src/application/use-cases/checkout/create-order.use-case';
+import { CheckoutSaga } from './../src/application/sagas/checkout.saga';
 import { CancelOrderUseCase } from './../src/application/use-cases/checkout/cancel-order.use-case';
 import { UpdateOrderStatusUseCase } from './../src/application/use-cases/checkout/update-order-status.use-case';
 import { GetOrderByIdUseCase } from './../src/application/use-cases/history/get-order-by-id.use-case';
@@ -29,7 +29,7 @@ describe('OrdersController (e2e)', () => {
       findAll: jest.fn(async () => orders),
     };
 
-    const createOrderUseCase = {
+    const checkoutSaga = {
       execute: jest.fn(async (payload: any) => {
         const createdOrder: PlainOrder = {
           id: `order-${orders.length + 1}`,
@@ -78,7 +78,7 @@ describe('OrdersController (e2e)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [OrdersController],
       providers: [
-        { provide: CreateOrderUseCase, useValue: createOrderUseCase },
+        { provide: CheckoutSaga, useValue: checkoutSaga },
         { provide: CancelOrderUseCase, useValue: cancelOrderUseCase },
         { provide: UpdateOrderStatusUseCase, useValue: updateOrderStatusUseCase },
         { provide: GetOrderByIdUseCase, useValue: getOrderByIdUseCase },

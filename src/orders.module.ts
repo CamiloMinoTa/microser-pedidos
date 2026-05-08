@@ -23,6 +23,7 @@ import { GetUserCartUseCase } from './application/use-cases/cart/get-user-cart.u
 import { ClearCartUseCase } from './application/use-cases/cart/clear-cart.use-case';
 import { GetUserOrderHistoryUseCase } from './application/use-cases/history/get-user-order-history.use-case';
 import { GetOrderByIdUseCase } from './application/use-cases/history/get-order-by-id.use-case';
+import { CheckoutSaga } from './application/sagas/checkout.saga';
 
 @Module({
   imports: [
@@ -49,6 +50,8 @@ import { GetOrderByIdUseCase } from './application/use-cases/history/get-order-b
     // History Use Cases
     GetUserOrderHistoryUseCase,
     GetOrderByIdUseCase,
+    // Sagas
+    CheckoutSaga,
     // Repositories
     {
       provide: ORDER_REPOSITORY,

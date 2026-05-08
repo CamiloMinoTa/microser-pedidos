@@ -10,11 +10,11 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { CreateOrderUseCase } from '../../application/use-cases/checkout/create-order.use-case';
 import { CancelOrderUseCase } from '../../application/use-cases/checkout/cancel-order.use-case';
 import { UpdateOrderStatusUseCase } from '../../application/use-cases/checkout/update-order-status.use-case';
 import { GetUserOrderHistoryUseCase } from '../../application/use-cases/history/get-user-order-history.use-case';
 import { GetOrderByIdUseCase } from '../../application/use-cases/history/get-order-by-id.use-case';
+import { CheckoutSaga } from '../../application/sagas/checkout.saga';
 import { ORDER_REPOSITORY, type OrderRepository } from '../../domain/ports/order.repository';
 import { Order } from '../../domain/entities/order.entity';
 import { CustomerId } from '../../domain/value-objects/customer-id.value-object';
@@ -23,7 +23,7 @@ import { OrderStatus } from '../../domain/value-objects/order-status.value-objec
 @Controller('orders')
 export class OrdersController {
   constructor(
-    private readonly createOrderUseCase: CreateOrderUseCase,
+    private readonly checkoutSaga: CheckoutSaga,
     private readonly cancelOrderUseCase: CancelOrderUseCase,
     private readonly updateOrderStatusUseCase: UpdateOrderStatusUseCase,
     private readonly getOrderByIdUseCase: GetOrderByIdUseCase,
@@ -45,10 +45,12 @@ export class OrdersController {
     }
 
     const customerId = new CustomerId(orderData.customerId);
-    const order = await this.createOrderUseCase.execute({
+    const order = await this.checkoutSaga.execute({
       customerId,
       items: orderData.items || [],
       totalAmount: orderData.totalAmount,
+      reserveInventory: orderData.reserveInventory === true,
+      clearCart: orderData.clearCart === true,
     });
 
     return this.toResponse(order);

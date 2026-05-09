@@ -6,9 +6,9 @@ import { OrderStatus } from '../../domain/value-objects/order-status.value-objec
 import { ProductId } from '../../domain/value-objects/product-id.value-object';
 import { Quantity } from '../../domain/value-objects/quantity.value-object';
 import {
-  PRODUCT_REPOSITORY,
-  type ProductRepository,
-} from '../../domain/ports/product.repository';
+  INVENTORY_REPOSITORY,
+  type InventoryRepository,
+} from '../../domain/ports/inventory.repository';
 import { CreateOrderUseCase } from '../use-cases/checkout/create-order.use-case';
 import { UpdateOrderStatusUseCase } from '../use-cases/checkout/update-order-status.use-case';
 import { CancelOrderUseCase } from '../use-cases/checkout/cancel-order.use-case';
@@ -21,8 +21,8 @@ type CheckoutItemInput = {
 };
 
 type ReservedStock = {
-  productId: string;
-  quantity: number;
+  productId: ProductId;
+  quantity: Quantity;
 };
 
 export type CheckoutSagaInput = {
@@ -40,8 +40,8 @@ export class CheckoutSaga {
     private readonly updateOrderStatusUseCase: UpdateOrderStatusUseCase,
     private readonly cancelOrderUseCase: CancelOrderUseCase,
     private readonly clearCartUseCase: ClearCartUseCase,
-    @Inject(PRODUCT_REPOSITORY)
-    private readonly productRepository: ProductRepository,
+    @Inject(INVENTORY_REPOSITORY)
+    private readonly inventoryRepository: InventoryRepository,
   ) {}
 
   async execute(input: CheckoutSagaInput): Promise<Order> {
@@ -92,32 +92,36 @@ export class CheckoutSaga {
     for (const item of items) {
       const productId = this.toProductId(item.productId);
       const quantity = this.toQuantity(item.quantity);
-      const updatedProduct = await this.productRepository.decreaseStock(
+      const updatedInventory = await this.inventoryRepository.reserve(
         productId,
         quantity,
       );
 
-      if (!updatedProduct) {
-        throw new Error(`Product ${productId} not found`);
+      if (!updatedInventory) {
+        throw new Error(
+          `Insufficient inventory for product ${productId.toString()}`,
+        );
       }
 
       reservedStock.push({ productId, quantity });
     }
   }
 
-  private async releaseReservedStock(reservedStock: ReservedStock[]): Promise<void> {
+  private async releaseReservedStock(
+    reservedStock: ReservedStock[],
+  ): Promise<void> {
     await Promise.all(
-      reservedStock.map(item =>
-        this.productRepository.increaseStock(item.productId, item.quantity),
+      reservedStock.map((item) =>
+        this.inventoryRepository.release(item.productId, item.quantity),
       ),
     );
   }
 
-  private toProductId(value: ProductId | string): string {
-    return value instanceof ProductId ? value.toString() : value;
+  private toProductId(value: ProductId | string): ProductId {
+    return value instanceof ProductId ? value : new ProductId(value);
   }
 
-  private toQuantity(value: Quantity | number): number {
-    return value instanceof Quantity ? value.toNumber() : value;
+  private toQuantity(value: Quantity | number): Quantity {
+    return value instanceof Quantity ? value : new Quantity(value);
   }
 }

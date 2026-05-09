@@ -1,520 +1,606 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 
-type OrderItem = {
+type CartItem = {
   productId: string;
   quantity: number;
   price: number;
 };
 
+type Cart = {
+  id: string;
+  userId: string;
+  items: CartItem[];
+  totalAmount: number;
+};
+
 type Order = {
   id: string;
   customerId: string;
+  items: CartItem[];
   totalAmount: number;
   status: string;
-  items: OrderItem[];
   createdAt: string;
 };
 
-type HealthStatus = 'idle' | 'checking' | 'online' | 'error';
-type PersistenceStatus = 'idle' | 'checking' | 'verified' | 'error';
-type BackendMode = 'detecting' | 'docker' | 'local' | 'custom' | 'offline';
-
-const PRIMARY_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3004';
-const FALLBACK_API_URL =
-  import.meta.env.VITE_API_FALLBACK_URL || 'http://localhost:3005';
-const API_CANDIDATES = Array.from(
-  new Set([PRIMARY_API_URL, FALLBACK_API_URL].filter(Boolean)),
-);
-
-const initialForm = {
-  customerId: '',
-  productId: '',
-  quantity: 1,
-  price: 0,
+type Notice = {
+  type: 'ok' | 'error' | 'info';
+  text: string;
 };
 
-function buildProbeOrder() {
-  const stamp = Date.now();
-  return {
-    customerId: `atlas-check-${stamp}`,
-    items: [
-      {
-        productId: `probe-${stamp}`,
-        quantity: 1,
-        price: 49,
-      },
-    ],
-    totalAmount: 49,
-  };
+const API_CANDIDATES = [
+  import.meta.env.VITE_API_URL || 'http://localhost:3004',
+  import.meta.env.VITE_API_FALLBACK_URL || 'http://localhost:3005',
+];
+
+const statusOptions = [
+  'pending',
+  'confirmed',
+  'shipped',
+  'delivered',
+  'cancelled',
+];
+
+const defaultCustomer = `cust-${Date.now()}`;
+
+function totalFromItems(items: CartItem[]) {
+  return items.reduce((total, item) => total + item.quantity * item.price, 0);
 }
 
-function getBackendMode(apiUrl: string): BackendMode {
-  if (apiUrl.includes(':3004')) {
-    return 'docker';
-  }
-
-  if (apiUrl.includes(':3005')) {
-    return 'local';
-  }
-
-  return 'custom';
-}
-
-async function fetchWithTimeout(
-  input: string,
+async function request<T>(
+  apiUrl: string,
+  path: string,
   init?: RequestInit,
-  timeoutMs = 3500,
-) {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+): Promise<T> {
+  const response = await fetch(`${apiUrl}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(init?.headers || {}),
+    },
+  });
 
-  try {
-    return await fetch(input, {
-      ...init,
-      signal: controller.signal,
-    });
-  } finally {
-    window.clearTimeout(timeoutId);
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`;
+    try {
+      const body = (await response.json()) as { message?: string };
+      message = body.message || message;
+    } catch {
+      message = await response.text();
+    }
+    throw new Error(message);
   }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  return (await response.json()) as T;
 }
 
 export default function App() {
+  const [apiUrl, setApiUrl] = useState(API_CANDIDATES[0]);
+  const [apiOnline, setApiOnline] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<Notice>({
+    type: 'info',
+    text: 'Listo para probar el backend.',
+  });
+
+  const [customerId, setCustomerId] = useState(defaultCustomer);
+  const [productId, setProductId] = useState('prod-001');
+  const [quantity, setQuantity] = useState(1);
+  const [price, setPrice] = useState(25);
+  const [cart, setCart] = useState<Cart | null>(null);
+
   const [orders, setOrders] = useState<Order[]>([]);
-  const [form, setForm] = useState(initialForm);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [apiStatus, setApiStatus] = useState<HealthStatus>('idle');
-  const [ordersStatus, setOrdersStatus] = useState<HealthStatus>('idle');
-  const [persistenceStatus, setPersistenceStatus] =
-    useState<PersistenceStatus>('idle');
-  const [healthMessage, setHealthMessage] = useState('Sin revisar');
-  const [lastSync, setLastSync] = useState('');
-  const [lastProbeId, setLastProbeId] = useState('');
-  const [activeApiUrl, setActiveApiUrl] = useState('');
-  const [backendMode, setBackendMode] = useState<BackendMode>('detecting');
+  const [selectedOrderId, setSelectedOrderId] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('confirmed');
+  const [reserveInventory, setReserveInventory] = useState(false);
+  const [clearCartAfterCheckout, setClearCartAfterCheckout] = useState(true);
 
-  async function detectBackend() {
-    setApiStatus('checking');
-    setBackendMode('detecting');
+  const cartTotal = useMemo(() => totalFromItems(cart?.items || []), [cart]);
 
-    const candidates = Array.from(
-      new Set([activeApiUrl, ...API_CANDIDATES].filter(Boolean)),
-    );
-    let lastError: Error | null = null;
-
-    for (const apiUrl of candidates) {
+  async function detectApi() {
+    for (const candidate of API_CANDIDATES) {
       try {
-        const response = await fetchWithTimeout(`${apiUrl}/`);
-        if (!response.ok) {
-          throw new Error(`El backend en ${apiUrl} respondio con error`);
+        const response = await fetch(`${candidate}/`);
+        if (response.ok) {
+          setApiUrl(candidate);
+          setApiOnline(true);
+          setNotice({ type: 'ok', text: `Backend activo en ${candidate}` });
+          return candidate;
         }
-
-        const message = await response.text();
-        setActiveApiUrl(apiUrl);
-        setBackendMode(getBackendMode(apiUrl));
-        setApiStatus('online');
-        setHealthMessage(message);
-        return { apiUrl, message };
-      } catch (err) {
-        lastError = err instanceof Error ? err : new Error('No se pudo conectar');
+      } catch {
+        // Try next candidate.
       }
     }
 
-    setActiveApiUrl('');
-    setBackendMode('offline');
-    setApiStatus('error');
-    throw (
-      lastError ??
-      new Error(
-        `No se encontro backend disponible en ${API_CANDIDATES.join(' o ')}`,
-      )
-    );
+    setApiOnline(false);
+    throw new Error('No encontre backend en 3004 ni 3005.');
   }
 
-  async function fetchOrders(apiUrl?: string) {
-    setOrdersStatus('checking');
-
+  async function withBusy(action: () => Promise<void>) {
     try {
-      const targetApiUrl = apiUrl || activeApiUrl || (await detectBackend()).apiUrl;
-      const response = await fetchWithTimeout(`${targetApiUrl}/orders`);
-      if (!response.ok) {
-        throw new Error('No se pudieron cargar los pedidos');
-      }
-
-      const data = (await response.json()) as Order[];
-      setOrders(data);
-      setOrdersStatus('online');
-      setLastSync(new Date().toLocaleString('es-CO'));
-      setActiveApiUrl(targetApiUrl);
-      return { apiUrl: targetApiUrl, data };
-    } catch (err) {
-      setOrdersStatus('error');
-      throw err instanceof Error ? err : new Error('Error inesperado');
-    }
-  }
-
-  async function createOrder(payload: {
-    customerId: string;
-    items: OrderItem[];
-    totalAmount: number;
-  }) {
-    const targetApiUrl = activeApiUrl || (await detectBackend()).apiUrl;
-    const response = await fetchWithTimeout(`${targetApiUrl}/orders`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const body = (await response.json()) as { message?: string };
-      throw new Error(body.message || 'No se pudo crear el pedido');
-    }
-
-    setActiveApiUrl(targetApiUrl);
-    return {
-      apiUrl: targetApiUrl,
-      order: (await response.json()) as Order,
-    };
-  }
-
-  async function refreshDashboard() {
-    try {
-      setLoading(true);
-      setError('');
-      const { apiUrl } = await detectBackend();
-      await fetchOrders(apiUrl);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error inesperado');
+      setBusy(true);
+      await action();
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Error inesperado',
+      });
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
+  }
+
+  async function loadCart(targetCustomer = customerId) {
+    const data = await request<Cart>(apiUrl, `/cart/${targetCustomer}`);
+    setCart(data);
+    setCustomerId(targetCustomer);
+    setNotice({
+      type: 'ok',
+      text: `Carrito cargado: ${data.items.length} item(s)`,
+    });
+  }
+
+  async function addItem(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    await withBusy(async () => {
+      const data = await request<Cart>(apiUrl, `/cart/${customerId}/items`, {
+        method: 'POST',
+        body: JSON.stringify({ productId, quantity, price }),
+      });
+      setCart(data);
+      setNotice({ type: 'ok', text: 'Item agregado al carrito.' });
+    });
+  }
+
+  async function updateItem(
+    targetProductId = productId,
+    targetQuantity = quantity,
+  ) {
+    await withBusy(async () => {
+      const data = await request<Cart>(
+        apiUrl,
+        `/cart/${customerId}/items/${targetProductId}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ quantity: targetQuantity }),
+        },
+      );
+      setCart(data);
+      setNotice({ type: 'ok', text: 'Cantidad actualizada.' });
+    });
+  }
+
+  async function removeItem(targetProductId = productId) {
+    await withBusy(async () => {
+      const data = await request<Cart>(
+        apiUrl,
+        `/cart/${customerId}/items/${targetProductId}`,
+        { method: 'DELETE' },
+      );
+      setCart(data);
+      setNotice({ type: 'ok', text: 'Item eliminado.' });
+    });
+  }
+
+  async function clearCart() {
+    await withBusy(async () => {
+      await request<{ cleared: boolean }>(apiUrl, `/cart/${customerId}`, {
+        method: 'DELETE',
+      });
+      setCart(null);
+      setNotice({ type: 'ok', text: 'Carrito limpiado.' });
+    });
+  }
+
+  async function loadOrders(path = '/orders') {
+    const data = await request<Order[]>(apiUrl, path);
+    setOrders(data);
+    setNotice({ type: 'ok', text: `${data.length} pedido(s) cargado(s).` });
+  }
+
+  async function checkoutFromCart() {
+    await withBusy(async () => {
+      const items = cart?.items || [];
+      if (items.length === 0) {
+        throw new Error('Agrega items al carrito antes del checkout.');
+      }
+
+      const order = await request<Order>(apiUrl, '/orders', {
+        method: 'POST',
+        body: JSON.stringify({
+          customerId,
+          items,
+          totalAmount: totalFromItems(items),
+          reserveInventory,
+          clearCart: clearCartAfterCheckout,
+        }),
+      });
+
+      setSelectedOrderId(order.id);
+      if (clearCartAfterCheckout) {
+        setCart(null);
+      }
+      await loadOrders();
+      setNotice({ type: 'ok', text: `Orden creada: ${order.id}` });
+    });
+  }
+
+  async function getOrderById() {
+    await withBusy(async () => {
+      const order = await request<Order>(apiUrl, `/orders/${selectedOrderId}`);
+      setOrders([order]);
+      setNotice({ type: 'ok', text: `Orden encontrada: ${order.id}` });
+    });
+  }
+
+  async function loadUserOrders() {
+    await withBusy(async () => {
+      await loadOrders(`/orders/user/${customerId}`);
+    });
+  }
+
+  async function updateOrderStatus() {
+    await withBusy(async () => {
+      const order = await request<Order>(
+        apiUrl,
+        `/orders/${selectedOrderId}/status`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ status: selectedStatus }),
+        },
+      );
+      setOrders((current) =>
+        current.map((item) => (item.id === order.id ? order : item)),
+      );
+      setNotice({ type: 'ok', text: `Estado actualizado a ${order.status}.` });
+    });
+  }
+
+  async function cancelOrder() {
+    await withBusy(async () => {
+      await request<{ deleted: boolean }>(
+        apiUrl,
+        `/orders/${selectedOrderId}`,
+        {
+          method: 'DELETE',
+        },
+      );
+      setOrders((current) =>
+        current.filter((order) => order.id !== selectedOrderId),
+      );
+      setNotice({ type: 'ok', text: 'Orden cancelada/eliminada.' });
+    });
+  }
+
+  async function runSmokeTest() {
+    await withBusy(async () => {
+      const testCustomer = `smoke-${Date.now()}`;
+      const testProduct = `sku-${Date.now()}`;
+      setCustomerId(testCustomer);
+      setProductId(testProduct);
+
+      const added = await request<Cart>(apiUrl, `/cart/${testCustomer}/items`, {
+        method: 'POST',
+        body: JSON.stringify({
+          productId: testProduct,
+          quantity: 1,
+          price: 10,
+        }),
+      });
+
+      const updated = await request<Cart>(
+        apiUrl,
+        `/cart/${testCustomer}/items/${testProduct}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ quantity: 2 }),
+        },
+      );
+
+      await request<Cart>(apiUrl, `/cart/${testCustomer}`);
+
+      const order = await request<Order>(apiUrl, '/orders', {
+        method: 'POST',
+        body: JSON.stringify({
+          customerId: testCustomer,
+          items: updated.items,
+          totalAmount: updated.totalAmount,
+          clearCart: false,
+        }),
+      });
+
+      await request<Order>(apiUrl, `/orders/${order.id}`);
+      await request<Order[]>(apiUrl, `/orders/user/${testCustomer}`);
+      await request<Order>(apiUrl, `/orders/${order.id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'confirmed' }),
+      });
+      await request<{ deleted: boolean }>(apiUrl, `/orders/${order.id}`, {
+        method: 'DELETE',
+      });
+      await request<Cart>(
+        apiUrl,
+        `/cart/${testCustomer}/items/${testProduct}`,
+        {
+          method: 'DELETE',
+        },
+      );
+      await request<{ cleared: boolean }>(apiUrl, `/cart/${testCustomer}`, {
+        method: 'DELETE',
+      });
+
+      setCart(added);
+      await loadOrders();
+      setNotice({
+        type: 'ok',
+        text: 'Prueba completa: carrito, checkout, historial, estado, cancelacion y limpieza.',
+      });
+    });
   }
 
   useEffect(() => {
-    void refreshDashboard();
+    void withBusy(async () => {
+      await detectApi();
+      await loadOrders();
+    });
   }, []);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    try {
-      setSubmitting(true);
-      setError('');
-      setSuccess('');
-      setPersistenceStatus('checking');
-
-      const item = {
-        productId: form.productId,
-        quantity: Number(form.quantity),
-        price: Number(form.price),
-      };
-
-      const { apiUrl, order } = await createOrder({
-        customerId: form.customerId,
-        items: [item],
-        totalAmount: item.quantity * item.price,
-      });
-
-      const updatedOrders = (await fetchOrders(apiUrl)).data;
-      const persisted = updatedOrders.some((currentOrder) => currentOrder.id === order.id);
-
-      if (!persisted) {
-        setPersistenceStatus('error');
-        throw new Error('El pedido se creo pero no reaparecio al recargar');
-      }
-
-      setPersistenceStatus('verified');
-      setLastProbeId(order.id);
-      setSuccess(
-        `Pedido ${order.id} guardado y confirmado desde la base de datos usando ${apiUrl}.`,
-      );
-      setForm(initialForm);
-    } catch (err) {
-      setPersistenceStatus('error');
-      setError(err instanceof Error ? err.message : 'Error inesperado');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function runVerification() {
-    try {
-      setVerifying(true);
-      setError('');
-      setSuccess('');
-      setPersistenceStatus('checking');
-
-      const { apiUrl } = await detectBackend();
-      const beforeOrders = (await fetchOrders(apiUrl)).data;
-      const probeOrder = buildProbeOrder();
-      const createdOrder = (await createOrder(probeOrder)).order;
-      const afterOrders = (await fetchOrders(apiUrl)).data;
-      const persisted = afterOrders.some((order) => order.id === createdOrder.id);
-
-      if (!persisted) {
-        setPersistenceStatus('error');
-        throw new Error('La API respondio, pero el pedido no quedo persistido');
-      }
-
-      setPersistenceStatus('verified');
-      setLastProbeId(createdOrder.id);
-      setSuccess(
-        `Verificacion completa: backend ${apiUrl} OK y pedido ${createdOrder.id} guardado en Atlas. Antes habia ${beforeOrders.length} pedidos y ahora ${afterOrders.length}.`,
-      );
-    } catch (err) {
-      setPersistenceStatus('error');
-      setError(err instanceof Error ? err.message : 'Error inesperado');
-    } finally {
-      setVerifying(false);
-    }
-  }
-
-  const metrics = [
-    {
-      label: 'Backend activo',
-      value:
-        backendMode === 'docker'
-          ? 'Docker 3004'
-          : backendMode === 'local'
-            ? 'Local 3005'
-            : backendMode === 'custom'
-              ? 'Custom'
-              : backendMode === 'detecting'
-                ? 'Buscando'
-                : 'Sin conexion',
-      tone: apiStatus === 'online' ? 'good' : apiStatus === 'error' ? 'bad' : 'neutral',
-      detail: activeApiUrl || 'Sin backend activo',
-    },
-    {
-      label: 'API Nest',
-      value:
-        apiStatus === 'online'
-          ? 'En linea'
-          : apiStatus === 'checking'
-            ? 'Verificando'
-            : apiStatus === 'error'
-              ? 'Con error'
-              : 'Sin revisar',
-      tone: apiStatus === 'online' ? 'good' : apiStatus === 'error' ? 'bad' : 'neutral',
-      detail: `GET / -> ${healthMessage}`,
-    },
-    {
-      label: 'Pedidos cargados',
-      value: loading ? 'Cargando' : String(orders.length),
-      tone:
-        ordersStatus === 'online' ? 'good' : ordersStatus === 'error' ? 'bad' : 'neutral',
-      detail: lastSync ? `Ultima sincronizacion: ${lastSync}` : 'Sin sincronizar',
-    },
-    {
-      label: 'Persistencia Atlas',
-      value:
-        persistenceStatus === 'verified'
-          ? 'Confirmada'
-          : persistenceStatus === 'checking'
-            ? 'Probando'
-            : persistenceStatus === 'error'
-              ? 'Con error'
-              : 'Pendiente',
-      tone:
-        persistenceStatus === 'verified'
-          ? 'good'
-          : persistenceStatus === 'error'
-            ? 'bad'
-            : 'neutral',
-      detail: lastProbeId ? `Ultimo pedido verificado: ${lastProbeId}` : 'Sin pedido de prueba',
-    },
-  ];
-
   return (
-    <main className="page">
-      <section className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">Microservicio de pedidos</p>
-          <h1>Panel para verificar backend y MongoDB Atlas</h1>
-          <p className="lead">
-            El frontend detecta automaticamente si el backend activo es Docker en
-            `3004` o Nest local en `3005`, y luego prueba que los pedidos se
-            guarden y reaparezcan al leerlos desde la base de datos.
-          </p>
+    <main className="shell">
+      <header className="topbar">
+        <div>
+          <h1>Pedidos QA</h1>
+          <p>{apiOnline ? `Conectado a ${apiUrl}` : 'Backend sin detectar'}</p>
         </div>
-
-        <div className="hero-actions">
+        <div className="topbar-actions">
+          <input
+            aria-label="API URL"
+            value={apiUrl}
+            onChange={(event) => setApiUrl(event.target.value)}
+          />
           <button
-            className="secondary"
-            disabled={verifying}
-            onClick={() => void runVerification()}
+            disabled={busy}
+            onClick={() => void detectApi()}
             type="button"
           >
-            {verifying ? 'Probando backend...' : 'Verificar backend y Atlas'}
+            Detectar
           </button>
-          <button onClick={() => void refreshDashboard()} type="button">
-            Recargar panel
-          </button>
-        </div>
-      </section>
-
-      <section className="metrics">
-        {metrics.map((metric) => (
-          <article className={`metric-card metric-${metric.tone}`} key={metric.label}>
-            <span>{metric.label}</span>
-            <strong>{metric.value}</strong>
-            <small>{metric.detail}</small>
-          </article>
-        ))}
-      </section>
-
-      <section className="panel panel-highlight">
-        <div className="panel-header">
-          <div>
-            <h2>Chequeo rapido</h2>
-            <p>
-              El panel intenta primero `http://localhost:3004` y si no responde,
-              prueba `http://localhost:3005`.
-            </p>
-          </div>
-        </div>
-
-        <div className="checklist">
-          <div>
-            <span className={`badge badge-${apiStatus}`}>1</span>
-            <p>Detectar automaticamente el backend disponible.</p>
-          </div>
-          <div>
-            <span className={`badge badge-${ordersStatus}`}>2</span>
-            <p>Cargar `GET /orders` y revisar que el endpoint responda.</p>
-          </div>
-          <div>
-            <span className={`badge badge-${persistenceStatus}`}>3</span>
-            <p>Crear un pedido y confirmar que reaparece al recargar desde Atlas.</p>
-          </div>
-        </div>
-
-        {success ? <p className="success">{success}</p> : null}
-        {error ? <p className="error">{error}</p> : null}
-      </section>
-
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h2>Crear pedido manual</h2>
-            <p>
-              Tambien puedes crear pedidos propios y validar persistencia con el
-              backend activo.
-            </p>
-          </div>
-        </div>
-
-        <form className="order-form" onSubmit={handleSubmit}>
-          <label>
-            Cliente
-            <input
-              required
-              value={form.customerId}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  customerId: event.target.value,
-                }))
-              }
-              placeholder="cust-001"
-            />
-          </label>
-
-          <label>
-            Producto
-            <input
-              required
-              value={form.productId}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  productId: event.target.value,
-                }))
-              }
-              placeholder="prod-001"
-            />
-          </label>
-
-          <label>
-            Cantidad
-            <input
-              min="1"
-              required
-              type="number"
-              value={form.quantity}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  quantity: Number(event.target.value),
-                }))
-              }
-            />
-          </label>
-
-          <label>
-            Precio
-            <input
-              min="0"
-              required
-              step="0.01"
-              type="number"
-              value={form.price}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  price: Number(event.target.value),
-                }))
-              }
-            />
-          </label>
-
-          <button disabled={submitting} type="submit">
-            {submitting ? 'Guardando...' : 'Crear y verificar pedido'}
-          </button>
-        </form>
-      </section>
-
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h2>Pedidos registrados</h2>
-            <p>Fuente activa: {activeApiUrl || 'sin detectar'}</p>
-          </div>
-          <button className="secondary" onClick={() => void refreshDashboard()} type="button">
-            Recargar pedidos
+          <button
+            disabled={busy}
+            onClick={() => void runSmokeTest()}
+            type="button"
+          >
+            Prueba completa
           </button>
         </div>
+      </header>
 
-        {loading ? <p className="muted">Cargando pedidos...</p> : null}
+      <section className={`notice ${notice.type}`}>{notice.text}</section>
 
-        {!loading && orders.length === 0 ? (
-          <p className="muted">Todavia no hay pedidos creados.</p>
-        ) : null}
+      <section className="layout">
+        <article className="panel">
+          <div className="panel-head">
+            <h2>Carrito</h2>
+            <button
+              disabled={busy}
+              onClick={() => void loadCart()}
+              type="button"
+            >
+              Cargar
+            </button>
+          </div>
 
-        <div className="orders-grid">
-          {orders.map((order) => (
-            <article className="order-card" key={order.id}>
-              <div className="order-card-header">
-                <span className={`status status-${order.status}`}>{order.status}</span>
-                <strong>{order.customerId}</strong>
-              </div>
-              <p className="amount">${order.totalAmount}</p>
-              <ul>
-                {order.items.map((item) => (
-                  <li key={`${order.id}-${item.productId}`}>
-                    {item.productId} x {item.quantity} @ ${item.price}
-                  </li>
+          <form className="form-grid" onSubmit={addItem}>
+            <label>
+              Cliente
+              <input
+                required
+                value={customerId}
+                onChange={(event) => setCustomerId(event.target.value)}
+              />
+            </label>
+            <label>
+              Producto
+              <input
+                required
+                value={productId}
+                onChange={(event) => setProductId(event.target.value)}
+              />
+            </label>
+            <label>
+              Cantidad
+              <input
+                min="0"
+                required
+                type="number"
+                value={quantity}
+                onChange={(event) => setQuantity(Number(event.target.value))}
+              />
+            </label>
+            <label>
+              Precio
+              <input
+                min="0"
+                required
+                step="0.01"
+                type="number"
+                value={price}
+                onChange={(event) => setPrice(Number(event.target.value))}
+              />
+            </label>
+            <button disabled={busy} type="submit">
+              Agregar item
+            </button>
+          </form>
+
+          <div className="actions">
+            <button
+              disabled={busy}
+              onClick={() => void updateItem()}
+              type="button"
+            >
+              Actualizar cantidad
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => void removeItem()}
+              type="button"
+            >
+              Quitar item
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => void clearCart()}
+              type="button"
+            >
+              Limpiar carrito
+            </button>
+          </div>
+
+          <div className="summary">
+            <strong>Total carrito: ${cartTotal}</strong>
+            <span>{cart?.items.length || 0} item(s)</span>
+          </div>
+
+          <div className="list">
+            {(cart?.items || []).map((item) => (
+              <button
+                className="row"
+                key={item.productId}
+                onClick={() => {
+                  setProductId(item.productId);
+                  setQuantity(item.quantity);
+                  setPrice(item.price);
+                }}
+                type="button"
+              >
+                <span>{item.productId}</span>
+                <small>
+                  {item.quantity} x ${item.price}
+                </small>
+              </button>
+            ))}
+          </div>
+        </article>
+
+        <article className="panel">
+          <div className="panel-head">
+            <h2>Checkout</h2>
+            <button
+              disabled={busy}
+              onClick={() => void checkoutFromCart()}
+              type="button"
+            >
+              Crear orden
+            </button>
+          </div>
+
+          <div className="toggles">
+            <label>
+              <input
+                checked={reserveInventory}
+                type="checkbox"
+                onChange={(event) => setReserveInventory(event.target.checked)}
+              />
+              Reservar inventario
+            </label>
+            <label>
+              <input
+                checked={clearCartAfterCheckout}
+                type="checkbox"
+                onChange={(event) =>
+                  setClearCartAfterCheckout(event.target.checked)
+                }
+              />
+              Limpiar al confirmar
+            </label>
+          </div>
+
+          <div className="panel-head compact">
+            <h2>Ordenes</h2>
+            <button
+              disabled={busy}
+              onClick={() => void loadOrders()}
+              type="button"
+            >
+              Todas
+            </button>
+          </div>
+
+          <div className="form-grid order-tools">
+            <label>
+              Orden
+              <input
+                value={selectedOrderId}
+                onChange={(event) => setSelectedOrderId(event.target.value)}
+              />
+            </label>
+            <label>
+              Estado
+              <select
+                value={selectedStatus}
+                onChange={(event) => setSelectedStatus(event.target.value)}
+              >
+                {statusOptions.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
                 ))}
-              </ul>
-              <small>{new Date(order.createdAt).toLocaleString('es-CO')}</small>
-            </article>
-          ))}
-        </div>
+              </select>
+            </label>
+          </div>
+
+          <div className="actions">
+            <button
+              disabled={busy || !selectedOrderId}
+              onClick={() => void getOrderById()}
+              type="button"
+            >
+              Buscar ID
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => void loadUserOrders()}
+              type="button"
+            >
+              Historial cliente
+            </button>
+            <button
+              disabled={busy || !selectedOrderId}
+              onClick={() => void updateOrderStatus()}
+              type="button"
+            >
+              Cambiar estado
+            </button>
+            <button
+              disabled={busy || !selectedOrderId}
+              onClick={() => void cancelOrder()}
+              type="button"
+            >
+              Cancelar
+            </button>
+          </div>
+
+          <div className="list orders">
+            {orders.map((order) => (
+              <button
+                className="row order-row"
+                key={order.id}
+                onClick={() => setSelectedOrderId(order.id)}
+                type="button"
+              >
+                <span>{order.customerId}</span>
+                <small>
+                  {order.status} | ${order.totalAmount} | {order.items.length}{' '}
+                  item(s)
+                </small>
+              </button>
+            ))}
+          </div>
+        </article>
       </section>
     </main>
   );
